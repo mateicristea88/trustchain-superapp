@@ -2,9 +2,11 @@ package nl.tudelft.trustchain.app
 
 import android.app.Application
 import android.bluetooth.BluetoothManager
+import android.os.Build
 import android.util.Log
 import androidx.core.content.getSystemService
 import androidx.preference.PreferenceManager
+import com.example.musicdao.ipv8.MusicCommunity
 import com.squareup.sqldelight.android.AndroidSqliteDriver
 import nl.tudelft.ipv8.IPv8Configuration
 import nl.tudelft.ipv8.Overlay
@@ -31,6 +33,8 @@ import nl.tudelft.trustchain.common.DemoCommunity
 import nl.tudelft.trustchain.app.service.TrustChainService
 import nl.tudelft.trustchain.common.MarketCommunity
 import nl.tudelft.trustchain.currencyii.CoinCommunity
+import nl.tudelft.trustchain.peerchat.community.PeerChatCommunity
+import nl.tudelft.trustchain.peerchat.db.PeerChatStore
 import nl.tudelft.trustchain.voting.VotingCommunity
 
 class TrustChainApplication : Application() {
@@ -46,11 +50,13 @@ class TrustChainApplication : Application() {
         val config = IPv8Configuration(overlays = listOf(
             createDiscoveryCommunity(),
             createTrustChainCommunity(),
+            createPeerChatCommunity(),
             createTFTPCommunity(),
             createDemoCommunity(),
             createMarketCommunity(),
             createCoinCommunity(),
-            createVotingCommunity()
+            createVotingCommunity(),
+            createMusicCommunity()
         ), walkerInterval = 5.0)
 
         IPv8Android.Factory(this)
@@ -111,8 +117,8 @@ class TrustChainApplication : Application() {
         val strategies = mutableListOf(
             randomWalk, randomChurn, periodicSimilarity, nsd
         )
-        if (bluetoothManager.adapter != null) {
-            val ble = BluetoothLeDiscovery.Factory(this, bluetoothManager)
+        if (bluetoothManager.adapter != null && Build.VERSION.SDK_INT >= 24) {
+            val ble = BluetoothLeDiscovery.Factory()
             strategies += ble
         }
 
@@ -129,6 +135,15 @@ class TrustChainApplication : Application() {
         val randomWalk = RandomWalk.Factory()
         return OverlayConfiguration(
             TrustChainCommunity.Factory(settings, store),
+            listOf(randomWalk)
+        )
+    }
+
+    private fun createPeerChatCommunity(): OverlayConfiguration<PeerChatCommunity> {
+        val randomWalk = RandomWalk.Factory()
+        val store = PeerChatStore.getInstance(this)
+        return OverlayConfiguration(
+            PeerChatCommunity.Factory(store, this),
             listOf(randomWalk)
         )
     }
@@ -173,6 +188,17 @@ class TrustChainApplication : Application() {
         val randomWalk = RandomWalk.Factory()
         return OverlayConfiguration(
             VotingCommunity.Factory(settings, store),
+            listOf(randomWalk)
+        )
+    }
+
+    private fun createMusicCommunity(): OverlayConfiguration<MusicCommunity> {
+        val settings = TrustChainSettings()
+        val driver = AndroidSqliteDriver(Database.Schema, this, "music.db")
+        val store = TrustChainSQLiteStore(Database(driver))
+        val randomWalk = RandomWalk.Factory()
+        return OverlayConfiguration(
+            MusicCommunity.Factory(settings, store),
             listOf(randomWalk)
         )
     }
